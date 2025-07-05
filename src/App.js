@@ -25,10 +25,47 @@ function sleepCalc(sleep_hour, wake_hour) {
   if (fim <= inicio) fim.setDate(fim.getDate() + 1); // ajusta se acordou no dia seguinte, por exemplo dormir as 23:00 e acordar as 07:30
 
   let diffMs = fim - inicio;
-  let horas = Math.floor(diffMs / 1000 / 60 / 60);
-  let minutos = Math.floor((diffMs / 1000 / 60) % 60);
+  let totalMinutos = Math.floor(diffMs / 1000 / 60);
+  let horas = Math.floor(totalMinutos / 60);
+  let minutos = totalMinutos % 60;
 
-  return { horas, minutos };
+  // Calcular ciclos de 90 minutos
+  let ciclos = Math.floor(totalMinutos / 90);
+  let minutosRestantes = totalMinutos % 90;
+
+  return { horas, minutos, totalMinutos, ciclos, minutosRestantes };
+}
+
+function calcularHorasRecomendadas(wake_hour) {
+  if (!wake_hour) return [];
+  
+  const [h2, m2] = wake_hour.split(':').map(Number);
+  let acordar = new Date(0, 0, 0, h2, m2);
+  
+  const horasRecomendadas = [];
+  
+  // Calcular para 3, 4, 5, 6 e 7 ciclos (4.5h, 6h, 7.5h, 9h, 10.5h)
+  for (let ciclos = 3; ciclos <= 7; ciclos++) {
+    let totalMinutos = ciclos * 90 + 15; // +15 min para adormecer
+    let dormir = new Date(acordar.getTime() - totalMinutos * 60 * 1000);
+    
+    // Ajustar se for dia anterior
+    if (dormir.getDate() !== acordar.getDate()) {
+      dormir.setDate(dormir.getDate() + 1);
+    }
+    
+    let horas = dormir.getHours().toString().padStart(2, '0');
+    let minutos = dormir.getMinutes().toString().padStart(2, '0');
+    
+    horasRecomendadas.push({
+      hora: `${horas}:${minutos}`,
+      ciclos: ciclos,
+      duracaoHoras: Math.floor((ciclos * 90) / 60),
+      duracaoMinutos: (ciclos * 90) % 60
+    });
+  }
+  
+  return horasRecomendadas;
 }
 
 function LocalTime(offsetMinutes = 0) {
@@ -43,10 +80,13 @@ export default function App() {
   const [sleep_hour, setSleepHour] = useState('23:00'); // hora de dormir
   const [wake_hour, setWakeHour] = useState('07:30'); // hora de acordar
   const [result, setResult] = useState(null);
+  const [horasRecomendadas, setHorasRecomendadas] = useState([]);
 
   const handleCalcular = () => { // função para calcular horas de sono
     const res = sleepCalc(sleep_hour, wake_hour);
+    const recomendadas = calcularHorasRecomendadas(wake_hour);
     setResult(res);
+    setHorasRecomendadas(recomendadas);
   };
 
   let corResult = "";
@@ -248,12 +288,122 @@ export default function App() {
               color: corResult,
               fontWeight: 600,
               fontSize: { xs: 14, sm: 15, md: 16 },
+              mb: 1,
             }}
           >
             {result.horas < 7
               ? "Try to sleep more!"
               : "Great! Ideal sleep!"}
           </Typography>
+          
+          {/* Sleep cycles info */}
+          <Typography
+            sx={{
+              color: "#8d92aa",
+              fontSize: { xs: 13, sm: 14 },
+              mb: 0.5,
+            }}
+          >
+            Sleep cycles: <span style={{ color: "#E6941A", fontWeight: 600 }}>{result.ciclos} cycles</span>
+            {result.minutosRestantes > 0 && (
+              <span> + {result.minutosRestantes} minutes</span>
+            )}
+          </Typography>
+          {result.minutosRestantes > 15 && (
+            <Typography
+              sx={{
+                color: "#ff9800",
+                fontSize: { xs: 12, sm: 13 },
+                fontStyle: "italic",
+              }}
+            >
+              You might wake up in the middle of a cycle
+            </Typography>
+          )}
+        </Box>
+      )}
+
+      {/* Recommended sleep times */}
+      {horasRecomendadas.length > 0 && (
+        <Box mb={{ xs: 2.5, sm: 2 }}>
+          <Typography
+            sx={{
+              color: "#f7f7fa",
+              fontSize: { xs: 15, sm: 16 },
+              fontWeight: 600,
+              mb: 1.5,
+            }}
+          >
+            Recommended bedtimes for optimal sleep:
+          </Typography>
+          <Box
+            sx={{
+              display: "grid",
+              gap: { xs: 1, sm: 1.2 },
+            }}
+          >
+            {horasRecomendadas.map((item, index) => (
+              <Box
+                key={index}
+                sx={{
+                  bgcolor: "#23262f",
+                  borderRadius: 2,
+                  p: { xs: 1.5, sm: 1.8 },
+                  border: "1px solid #353840",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  "&:hover": {
+                    bgcolor: "#2a2d36",
+                    borderColor: "#E6941A",
+                    transform: "translateY(-1px)",
+                  },
+                }}
+                onClick={() => setSleepHour(item.hora)}
+              >
+                <Box>
+                  <Typography
+                    sx={{
+                      color: "#E6941A",
+                      fontSize: { xs: 16, sm: 18 },
+                      fontWeight: 600,
+                    }}
+                  >
+                    {item.hora}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      color: "#8d92aa",
+                      fontSize: { xs: 11, sm: 12 },
+                    }}
+                  >
+                    {item.duracaoHoras}h {item.duracaoMinutos > 0 ? `${item.duracaoMinutos}m` : ''} sleep
+                  </Typography>
+                </Box>
+                <Box sx={{ textAlign: "right" }}>
+                  <Typography
+                    sx={{
+                      color: "#4caf50",
+                      fontSize: { xs: 13, sm: 14 },
+                      fontWeight: 600,
+                    }}
+                  >
+                    {item.ciclos} cycles
+                  </Typography>
+                  <Typography
+                    sx={{
+                      color: "#8d92aa",
+                      fontSize: { xs: 10, sm: 11 },
+                    }}
+                  >
+                    Click to use (coming soon)
+                  </Typography>
+                </Box>
+              </Box>
+            ))}
+          </Box>
         </Box>
       )}
 
@@ -322,7 +472,7 @@ export default function App() {
               transform: "scale(1.05)",
             },
           }}
-          onClick={() => window.open("https://github.com/seu-usuario", "_blank")}
+          onClick={() => window.open("https://github.com/guerra14git", "_blank")}
           title="GitHub"
         >
           <Box
@@ -356,7 +506,7 @@ export default function App() {
               transform: "scale(1.05)",
             },
           }}
-          onClick={() => window.open("https://linkedin.com/in/seu-perfil", "_blank")}
+          onClick={() => window.open("https://www.linkedin.com/in/ricardo-guerra-3a3367349?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=ios_app", "_blank")}
           title="LinkedIn"
         >
           <Box
